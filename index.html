@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>市場情緒儀表板</title>
+<link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --bd:#30363d;--tx:#e6edf3;--dim:#8b949e;
+  --ac:#58a6ff;--gr:#3fb950;--rd:#f85149;
+  --or:#d29922;--yw:#e3e312;--taiex:#ff9f43;
+}
+html,body{background:var(--bg);color:var(--tx);font-family:'Noto Sans TC',system-ui,sans-serif;min-height:100vh}
+a{color:inherit;text-decoration:none}
+
+/* ── Header ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--bd)}
+.hdr-title{font-size:17px;font-weight:700}
+.hdr-updated{font-size:11px;color:var(--dim);text-align:right;line-height:1.4}
+.hdr-updated span{display:block}
+.refresh-btn{background:none;border:1px solid var(--bd);color:var(--dim);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+.refresh-btn:active{background:var(--bg3)}
+
+/* ── Market status bar ── */
+.status-bar{background:var(--bg3);padding:8px 16px;display:flex;gap:12px;font-size:12px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.status-item{display:flex;align-items:center;gap:4px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.dot.open{background:var(--gr)}
+
+/* ── Cards row ── */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 12px 0}
+@media(max-width:360px){.cards{grid-template-columns:1fr}}
+.card{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:14px 12px}
+.card-title{font-size:11px;color:var(--dim);margin-bottom:8px}
+.score{font-size:38px;font-weight:700;line-height:1}
+.score-label{font-size:13px;margin-top:4px}
+.score-chg{font-size:12px;margin-top:2px}
+.score-date{font-size:10px;color:var(--dim);margin-top:3px}
+.card-sep{border:none;border-top:1px solid var(--bd);margin:10px 0}
+.sub-label{font-size:11px;color:var(--dim);margin-bottom:2px}
+.taiex-val{font-size:22px;font-weight:700}
+.cnn-row{display:flex;gap:10px;font-size:11px;color:var(--dim);margin-top:6px}
+.cnn-row b{color:var(--tx)}
+
+/* ── Section ── */
+.section{padding:12px 12px 0}
+.section-title{font-size:12px;color:var(--dim);margin-bottom:8px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+
+/* ── Actives table ── */
+.actives-wrap{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.actives-table{width:100%;border-collapse:collapse;font-size:12px}
+.actives-table th{background:var(--bg3);color:var(--dim);font-weight:600;padding:7px 8px;text-align:left;white-space:nowrap}
+.actives-table th:not(:first-child){text-align:right}
+.actives-table td{padding:7px 8px;border-top:1px solid var(--bd);white-space:nowrap}
+.actives-table td:not(:first-child){text-align:right}
+.actives-table tr:active{background:var(--bg3)}
+.up{color:var(--gr)}.down{color:var(--rd)}.flat{color:var(--dim)}
+.name-cell{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+
+/* ── Chart section ── */
+.chart-section{padding:12px;padding-bottom:24px}
+.chart-box{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.tab-row{display:flex;gap:6px;padding:10px 10px 0}
+.tab-btn{background:var(--bg3);color:var(--dim);border:1px solid var(--bd);border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:600}
+.tab-btn.active{background:var(--ac);color:#0d1117;border-color:var(--ac)}
+.range-row{display:flex;gap:4px;padding:8px 10px 4px}
+.range-btn{background:var(--bg3);color:var(--dim);border:1px solid var(--bd);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600}
+.range-btn.active{background:var(--ac);color:#0d1117;border-color:var(--ac)}
+.chart-wrap{padding:0 10px 12px;position:relative;height:220px}
+.chart-wrap canvas{width:100%!important;height:100%!important}
+.chart-pane{display:none}.chart-pane.visible{display:block}
+.no-data{text-align:center;padding:60px 0;color:var(--dim);font-size:13px}
+
+/* ── Loading overlay ── */
+.loading{position:fixed;inset:0;background:rgba(13,17,23,.85);display:flex;align-items:center;justify-content:center;z-index:999;font-size:14px;color:var(--dim)}
+.loading.hidden{display:none}
+
+/* ── Error banner ── */
+.err-banner{background:#2d1216;border:1px solid var(--rd);color:var(--rd);font-size:12px;padding:8px 14px;margin:10px 12px;border-radius:8px;display:none}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">載入資料中...</div>
+
+<div class="hdr">
+  <div class="hdr-title">📊 市場情緒儀表板</div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="hdr-updated">
+      <span id="updatedAt" style="color:var(--dim)">---</span>
+      <span id="nextUpdate" style="color:var(--dim)"></span>
+    </div>
+    <button class="refresh-btn" onclick="loadData()">↻</button>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-item"><div class="dot" id="twDot"></div><span id="twStatus">🇹🇼 載入中</span></div>
+  <div class="status-item"><div class="dot" id="usDot"></div><span id="usStatus">🇺🇸 載入中</span></div>
+</div>
+
+<div class="err-banner" id="errBanner"></div>
+
+<div class="cards">
+  <!-- MM Card -->
+  <div class="card">
+    <div class="card-title">🇹🇼 台灣 MM</div>
+    <div class="score" id="mmScore" style="color:var(--dim)">--</div>
+    <div class="score-label" id="mmLabel" style="color:var(--dim)">--</div>
+    <div class="score-chg" id="mmChg"></div>
+    <div class="score-date" id="mmDate"></div>
+    <hr class="card-sep">
+    <div class="sub-label">加權指數</div>
+    <div class="taiex-val" id="taiexVal" style="color:var(--dim)">--</div>
+    <div class="score-chg" id="taiexChg"></div>
+  </div>
+  <!-- CNN Card -->
+  <div class="card">
+    <div class="card-title">🇺🇸 CNN F&G</div>
+    <div class="score" id="cnnScore" style="color:var(--dim)">--</div>
+    <div class="score-label" id="cnnLabel" style="color:var(--dim)">--</div>
+    <div class="score-date" id="cnnDate"></div>
+    <div class="cnn-row">
+      <div>前日<br><b id="cnnPc">--</b></div>
+      <div>前週<br><b id="cnnPw">--</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- Actives -->
+<div class="section">
+  <div class="section-title">美股活躍排行</div>
+  <div class="actives-wrap">
+    <table class="actives-table">
+      <thead><tr>
+        <th>名稱</th><th>現價</th><th>漲跌%</th>
+      </tr></thead>
+      <tbody id="activesBody"><tr><td colspan="3" class="no-data">載入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="chart-section">
+  <div class="chart-box">
+    <div class="tab-row">
+      <button class="tab-btn active" id="tabCnn" onclick="switchTab('cnn')">CNN Fear & Greed</button>
+      <button class="tab-btn" id="tabMm" onclick="switchTab('mm')">🇹🇼 台灣 MM</button>
+    </div>
+
+    <!-- CNN chart -->
+    <div class="chart-pane visible" id="paneCnn">
+      <div class="range-row" id="cnnRanges"></div>
+      <div class="chart-wrap"><canvas id="cnnChart"></canvas></div>
+    </div>
+
+    <!-- MM chart -->
+    <div class="chart-pane" id="paneMm">
+      <div class="range-row" id="mmRanges"></div>
+      <div class="chart-wrap"><canvas id="mmChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 顏色 ──────────────────────────────────────
+const C = {
+  bg:'#0d1117',bg2:'#161b22',bg3:'#21262d',bd:'#30363d',
+  tx:'#e6edf3',dim:'#8b949e',ac:'#58a6ff',
+  gr:'#3fb950',rd:'#f85149',or:'#d29922',yw:'#e3e312',taiex:'#ff9f43'
+};
+
+function fgColor(v){
+  v=+v;
+  if(v>=75)return C.rd;if(v>=55)return C.or;
+  if(v>=45)return C.yw;if(v>=25)return C.gr;return C.ac;
+}
+function fgLabel(v){
+  v=+v;
+  if(v>=75)return'極度貪婪';if(v>=55)return'貪婪';
+  if(v>=45)return'中性';if(v>=25)return'恐懼';return'極度恐懼';
+}
+function chgStr(v,p){
+  if(p==null)return'';const d=v-p;
+  return(d>=0?'▲ ':'▼ ')+Math.abs(d).toFixed(1);
+}
+function chgColor(v,p){return p==null?C.dim:v>=p?C.gr:C.rd}
+
+// ── 市場狀態 ──────────────────────────────────
+function marketStatus(){
+  const now=new Date();
+  // 台灣 UTC+8
+  const tw=new Date(now.toLocaleString('en-US',{timeZone:'Asia/Taipei'}));
+  const us=new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
+  function check(d,oh,om,ch,cm,label){
+    const wd=d.getDay(),h=d.getHours(),m=d.getMinutes();
+    const t=h*60+m,o=oh*60+om,c=ch*60+cm;
+    if(wd===0||wd===6)return{open:false,txt:`${label} 休市（假日）`};
+    if(t>=o&&t<=c){
+      const left=c-t;
+      return{open:true,txt:`${label} 開市中 ⏳${Math.floor(left/60)}h${left%60}m`};
+    }
+    return{open:false,txt:`${label} 收盤`};
+  }
+  const twS=check(tw,9,0,13,30,'🇹🇼 台灣');
+  const usS=check(us,9,30,16,0,'🇺🇸 美國');
+  document.getElementById('twStatus').textContent=twS.txt;
+  document.getElementById('usDot').className='dot'+(twS.open?' open':'');
+  document.getElementById('usStatus').textContent=usS.txt;
+  document.getElementById('usDot').className='dot'+(usS.open?' open':'');
+}
+setInterval(marketStatus,60000);
+marketStatus();
+
+// ── 圖表輔助：背景色帶 plugin ─────────────────
+const zoneBgPlugin={
+  id:'zoneBg',
+  beforeDraw(chart){
+    const{ctx,chartArea,scales}=chart;
+    if(!chartArea||!scales.y)return;
+    const yScale=scales.y;
+    const zones=[[0,25,'#172030'],[25,45,'#152615'],[45,55,'#252510'],[55,75,'#261e08'],[75,100,'#260e0e']];
+    ctx.save();
+    zones.forEach(([lo,hi,clr])=>{
+      const y1=yScale.getPixelForValue(hi);
+      const y2=yScale.getPixelForValue(lo);
+      ctx.fillStyle=clr;
+      ctx.fillRect(chartArea.left,y1,chartArea.right-chartArea.left,y2-y1);
+    });
+    ctx.restore();
+  }
+};
+
+// ── CNN 圖表 ──────────────────────────────────
+let cnnChart=null,cnnData=[],cnnRange='3M';
+const CNN_RANGES={
+  '1W':7,'1M':30,'3M':90,'6M':183
+};
+
+function initCnnRanges(){
+  const el=document.getElementById('cnnRanges');
+  el.innerHTML='';
+  Object.keys(CNN_RANGES).forEach(r=>{
+    const b=document.createElement('button');
+    b.className='range-btn'+(r===cnnRange?' active':'');
+    b.textContent=r;
+    b.onclick=()=>{cnnRange=r;el.querySelectorAll('.range-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');drawCnn();};
+    el.appendChild(b);
+  });
+}
+
+function drawCnn(){
+  if(!cnnData.length)return;
+  const days=CNN_RANGES[cnnRange];
+  const cutoff=new Date(Date.now()-days*86400000);
+  const filtered=cnnData.filter(d=>new Date(d.date)>=cutoff);
+  if(!filtered.length)return;
+  const labels=filtered.map(d=>d.date);
+  const scores=filtered.map(d=>d.score);
+
+  if(cnnChart)cnnChart.destroy();
+  const ctx=document.getElementById('cnnChart').getContext('2d');
+  cnnChart=new Chart(ctx,{
+    type:'line',
+    plugins:[zoneBgPlugin],
+    data:{
+      labels,
+      datasets:[{
+        data:scores,borderColor:C.ac,backgroundColor:C.ac+'12',
+        borderWidth:2,pointRadius:0,pointHoverRadius:4,fill:true,tension:0.3
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:false,
+      plugins:{legend:{display:false},tooltip:{
+        callbacks:{label:ctx=>`${ctx.parsed.y.toFixed(1)} ${fgLabel(ctx.parsed.y)}`},
+        backgroundColor:C.bg3,titleColor:C.tx,bodyColor:C.tx,borderColor:C.bd,borderWidth:1
+      }},
+      scales:{
+        x:{ticks:{color:C.dim,maxTicksLimit:6,maxRotation:0},grid:{color:C.bd+'55'},border:{color:C.bd}},
+        y:{min:0,max:100,ticks:{color:C.dim,stepSize:25},grid:{color:C.bd+'55'},border:{color:C.bd}}
+      }
+    }
+  });
+}
+
+// ── MM 圖表（雙軸）──────────────────────────
+let mmChart=null,mmFearData=[],mmTaiexData=[],mmRange='ALL';
+const MM_RANGES={'1Y':365,'3Y':365*3,'5Y':365*5,'ALL':null};
+
+function initMmRanges(){
+  const el=document.getElementById('mmRanges');
+  el.innerHTML='';
+  Object.keys(MM_RANGES).forEach(r=>{
+    const b=document.createElement('button');
+    b.className='range-btn'+(r===mmRange?' active':'');
+    b.textContent=r;
+    b.onclick=()=>{mmRange=r;el.querySelectorAll('.range-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');drawMm();};
+    el.appendChild(b);
+  });
+}
+
+function drawMm(){
+  if(!mmFearData.length)return;
+  const days=MM_RANGES[mmRange];
+  const cutoff=days?new Date(Date.now()-days*86400000):null;
+  const fearF=cutoff?mmFearData.filter(d=>new Date(d.date)>=cutoff):mmFearData;
+  const taiexF=cutoff?mmTaiexData.filter(d=>new Date(d.date)>=cutoff):mmTaiexData;
+  if(!fearF.length)return;
+
+  if(mmChart)mmChart.destroy();
+  const ctx=document.getElementById('mmChart').getContext('2d');
+  mmChart=new Chart(ctx,{
+    type:'line',
+    plugins:[zoneBgPlugin],
+    data:{
+      labels:fearF.map(d=>d.date),
+      datasets:[
+        {
+          label:'恐懼貪婪',data:fearF.map(d=>d.value),
+          borderColor:C.ac,backgroundColor:C.ac+'10',
+          borderWidth:1.5,pointRadius:0,fill:true,tension:0.2,yAxisID:'y'
+        },
+        {
+          label:'加權指數',data:taiexF.map(d=>d.value),
+          borderColor:C.taiex,backgroundColor:'transparent',
+          borderWidth:1.5,pointRadius:0,fill:false,tension:0.2,yAxisID:'y2'
+        }
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:false,
+      plugins:{
+        legend:{display:true,labels:{color:C.dim,boxWidth:12,font:{size:11}}},
+        tooltip:{backgroundColor:C.bg3,titleColor:C.tx,bodyColor:C.tx,borderColor:C.bd,borderWidth:1}
+      },
+      scales:{
+        x:{ticks:{color:C.dim,maxTicksLimit:6,maxRotation:0},grid:{color:C.bd+'55'},border:{color:C.bd}},
+        y:{min:0,max:100,position:'left',ticks:{color:C.ac,stepSize:25},grid:{color:C.bd+'55'},border:{color:C.bd}},
+        y2:{position:'right',ticks:{color:C.taiex,maxTicksLimit:5},grid:{drawOnChartArea:false},border:{color:C.bd}}
+      }
+    }
+  });
+}
+
+// ── Tab 切換 ──────────────────────────────────
+let activeTab='cnn';
+function switchTab(tab){
+  activeTab=tab;
+  document.getElementById('paneCnn').className='chart-pane'+(tab==='cnn'?' visible':'');
+  document.getElementById('paneMm').className='chart-pane'+(tab==='mm'?' visible':'');
+  document.getElementById('tabCnn').className='tab-btn'+(tab==='cnn'?' active':'');
+  document.getElementById('tabMm').className='tab-btn'+(tab==='mm'?' active':'');
+  if(tab==='mm')drawMm();else drawCnn();
+}
+
+// ── 資料套入 UI ───────────────────────────────
+function applyData(d){
+  // MM
+  const mm=d.mm;
+  if(mm){
+    const c=fgColor(mm.fear_value);
+    document.getElementById('mmScore').textContent=mm.fear_value.toFixed(1);
+    document.getElementById('mmScore').style.color=c;
+    document.getElementById('mmLabel').textContent=fgLabel(mm.fear_value);
+    document.getElementById('mmLabel').style.color=c;
+    document.getElementById('mmChg').textContent=chgStr(mm.fear_value,mm.fear_prev);
+    document.getElementById('mmChg').style.color=chgColor(mm.fear_value,mm.fear_prev);
+    document.getElementById('mmDate').textContent=mm.fear_date;
+    const tc=chgColor(mm.taiex_value,mm.taiex_prev);
+    document.getElementById('taiexVal').textContent=mm.taiex_value.toLocaleString();
+    document.getElementById('taiexVal').style.color=tc;
+    document.getElementById('taiexChg').textContent=chgStr(mm.taiex_value,mm.taiex_prev);
+    document.getElementById('taiexChg').style.color=tc;
+    mmFearData=mm.fear_series||[];
+    mmTaiexData=mm.taiex_series||[];
+    if(activeTab==='mm')drawMm();
+  }
+
+  // CNN
+  const cnn=d.cnn;
+  if(cnn){
+    const c=fgColor(cnn.score);
+    document.getElementById('cnnScore').textContent=cnn.score.toFixed(1);
+    document.getElementById('cnnScore').style.color=c;
+    document.getElementById('cnnLabel').textContent=fgLabel(cnn.score);
+    document.getElementById('cnnLabel').style.color=c;
+    document.getElementById('cnnDate').textContent=cnn.date;
+    document.getElementById('cnnPc').textContent=cnn.prev_close;
+    document.getElementById('cnnPw').textContent=cnn.prev_week;
+    cnnData=cnn.historical||[];
+    if(activeTab==='cnn')drawCnn();
+  }
+
+  // Actives
+  const tbody=document.getElementById('activesBody');
+  tbody.innerHTML='';
+  if(d.actives&&d.actives.length){
+    d.actives.forEach(s=>{
+      const cls=s.chg>0?'up':s.chg<0?'down':'flat';
+      const arrow=s.chg>=0?'▲':'▼';
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td><div class="name-cell">${s.name}<br><small style="color:var(--dim)">${s.symbol}</small></div></td>
+        <td>${s.price.toLocaleString()}</td>
+        <td class="${cls}">${arrow}${Math.abs(s.pct).toFixed(2)}%</td>`;
+      tbody.appendChild(tr);
+    });
+  } else {
+    tbody.innerHTML='<tr><td colspan="3" class="no-data">無資料</td></tr>';
+  }
+
+  // Updated time
+  if(d.updated_at){
+    const dt=new Date(d.updated_at);
+    const twTime=dt.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',
+      month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('updatedAt').textContent='更新：'+twTime;
+  }
+}
+
+// ── 主載入函式 ────────────────────────────────
+async function loadData(){
+  document.getElementById('loading').classList.remove('hidden');
+  document.getElementById('errBanner').style.display='none';
+  try{
+    const url='./data/latest.json?t='+Date.now();
+    const r=await fetch(url);
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const d=await r.json();
+    applyData(d);
+  }catch(e){
+    const b=document.getElementById('errBanner');
+    b.textContent='無法載入資料：'+e.message+'（GitHub Actions 可能尚未執行）';
+    b.style.display='block';
+  }finally{
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+
+// ── 初始化 ────────────────────────────────────
+initCnnRanges();
+initMmRanges();
+loadData();
+
+// 每 10 分鐘自動重新載入
+setInterval(loadData,600000);
+
+// Service Worker
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
